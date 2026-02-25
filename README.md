@@ -40,7 +40,13 @@ git push origin main --follow-tags
 ```
 
 `check-shim.sh` reports any new `bun.*` APIs that consumers need to add
-to their shim. Then update the hash in the consumer's `build.zig.zon`.
+to their shim.
+
+After pushing, update consumers:
+
+1. Update the hash in `build.zig.zon`
+2. If `check-shim.sh` reported new APIs, add them to the shim
+3. `zig build test`
 
 ## License
 

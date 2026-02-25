@@ -23,7 +23,24 @@ CommonMark 0.31.2 compliant, plus:
 
 ## Usage
 
-Add as a Zig dependency and provide a `"bun"` module shim. See the upstream consumer for an example.
+Add as a Zig dependency and provide a `"bun"` module shim. See [ztree-parse-md](https://github.com/erwagasore/ztree-parse-md) for a working example.
+
+## Sync from upstream
+
+This repo tracks `oven-sh/bun/src/md/`. To pull in updates:
+
+```bash
+BUN_COMMIT="<hash>"
+curl -sL "https://github.com/oven-sh/bun/archive/${BUN_COMMIT}.tar.gz" | \
+  tar xz --strip-components=3 -C src/ "bun-${BUN_COMMIT}/src/md/"
+git add -A && git commit -m "sync: bun@${BUN_COMMIT:0:12}"
+git tag -a v<next> -m "v<next>"
+git push origin main --follow-tags
+```
+
+Then update the hash in the consumer's `build.zig.zon`.
+
+The shim rarely needs changes — only if Bun adds new `@import("bun")` APIs.
 
 ## License
 

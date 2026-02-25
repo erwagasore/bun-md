@@ -33,14 +33,14 @@ This repo tracks `oven-sh/bun/src/md/`. To pull in updates:
 BUN_COMMIT="<hash>"
 curl -sL "https://github.com/oven-sh/bun/archive/${BUN_COMMIT}.tar.gz" | \
   tar xz --strip-components=3 -C src/ "bun-${BUN_COMMIT}/src/md/"
+./scripts/check-shim.sh
 git add -A && git commit -m "sync: bun@${BUN_COMMIT:0:12}"
 git tag -a v<next> -m "v<next>"
 git push origin main --follow-tags
 ```
 
-Then update the hash in the consumer's `build.zig.zon`.
-
-The shim rarely needs changes — only if Bun adds new `@import("bun")` APIs.
+`check-shim.sh` reports any new `bun.*` APIs that consumers need to add
+to their shim. Then update the hash in the consumer's `build.zig.zon`.
 
 ## License
 

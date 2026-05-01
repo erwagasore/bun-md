@@ -8,7 +8,7 @@ pub const RefDef = struct {
 /// strip leading/trailing whitespace, case-fold.
 pub fn normalizeLabel(self: *Parser, raw: []const u8) []const u8 {
     // Collapse whitespace and apply Unicode case folding (per CommonMark §6.7)
-    var result = std.ArrayListUnmanaged(u8){};
+    var result: std.ArrayListUnmanaged(u8) = .empty;
     var in_ws = true; // skip leading whitespace
     var i: usize = 0;
     while (i < raw.len) {
@@ -16,7 +16,10 @@ pub fn normalizeLabel(self: *Parser, raw: []const u8) []const u8 {
         switch (c) {
             ' ', '\t', '\n', '\r' => {
                 if (!in_ws and result.items.len > 0) {
-                    result.append(self.allocator, ' ') catch return raw;
+                    result.append(self.allocator, ' ') catch {
+                        result.deinit(self.allocator);
+                        return raw;
+                    };
                     in_ws = true;
                 }
                 i += 1;
@@ -30,7 +33,10 @@ pub fn normalizeLabel(self: *Parser, raw: []const u8) []const u8 {
                     var buf: [4]u8 = undefined;
                     const len = helpers.encodeUtf8(fold.codepoints[j], &buf);
                     if (len > 0) {
-                        result.appendSlice(self.allocator, buf[0..len]) catch return raw;
+                        result.appendSlice(self.allocator, buf[0..len]) catch {
+                            result.deinit(self.allocator);
+                            return raw;
+                        };
                     }
                 }
                 in_ws = false;
@@ -38,7 +44,10 @@ pub fn normalizeLabel(self: *Parser, raw: []const u8) []const u8 {
             },
             else => {
                 // ASCII: simple toLower
-                result.append(self.allocator, std.ascii.toLower(c)) catch return raw;
+                result.append(self.allocator, std.ascii.toLower(c)) catch {
+                    result.deinit(self.allocator);
+                    return raw;
+                };
                 in_ws = false;
                 i += 1;
             },
@@ -48,7 +57,10 @@ pub fn normalizeLabel(self: *Parser, raw: []const u8) []const u8 {
     if (result.items.len > 0 and result.items[result.items.len - 1] == ' ') {
         result.items.len -= 1;
     }
-    return result.items;
+    return result.toOwnedSlice(self.allocator) catch {
+        result.deinit(self.allocator);
+        return raw;
+    };
 }
 
 /// Look up a reference definition by label (case-insensitive, whitespace-normalized).
@@ -56,6 +68,8 @@ pub fn lookupRefDef(self: *Parser, raw_label: []const u8) ?RefDef {
     if (raw_label.len == 0) return null;
     const normalized = self.normalizeLabel(raw_label);
     if (normalized.len == 0) return null; // whitespace-only labels are invalid
+    defer if (normalized.ptr != raw_label.ptr) self.allocator.free(normalized);
+
     for (self.ref_defs.items) |rd| {
         if (std.mem.eql(u8, rd.label, normalized)) return rd;
     }
@@ -288,6 +302,8 @@ pub fn buildRefDefHashtable(self: *Parser) error{OutOfMemory}!void {
             // Normalize and store the ref def (first definition wins)
             const norm_label = self.normalizeLabel(result.label);
             if (norm_label.len == 0) break; // whitespace-only labels are invalid
+            if (norm_label.ptr == result.label.ptr) return error.OutOfMemory;
+
             var already_exists = false;
             for (self.ref_defs.items) |existing| {
                 if (std.mem.eql(u8, existing.label, norm_label)) {
@@ -295,15 +311,29 @@ pub fn buildRefDefHashtable(self: *Parser) error{OutOfMemory}!void {
                     break;
                 }
             }
-            if (!already_exists) {
+            if (already_exists) {
+                self.allocator.free(norm_label);
+            } else {
                 // Dupe dest and title since they point into self.buffer which gets reused
-                const dest_dupe = self.allocator.dupe(u8, result.dest) catch return error.OutOfMemory;
-                const title_dupe = self.allocator.dupe(u8, result.title) catch return error.OutOfMemory;
-                try self.ref_defs.append(self.allocator, .{
+                const dest_dupe = self.allocator.dupe(u8, result.dest) catch {
+                    self.allocator.free(norm_label);
+                    return error.OutOfMemory;
+                };
+                const title_dupe = self.allocator.dupe(u8, result.title) catch {
+                    self.allocator.free(norm_label);
+                    self.allocator.free(dest_dupe);
+                    return error.OutOfMemory;
+                };
+                self.ref_defs.append(self.allocator, .{
                     .label = norm_label,
                     .dest = dest_dupe,
                     .title = title_dupe,
-                });
+                }) catch {
+                    self.allocator.free(norm_label);
+                    self.allocator.free(dest_dupe);
+                    self.allocator.free(title_dupe);
+                    return error.OutOfMemory;
+                };
             }
 
             // Count how many newlines were consumed to track lines

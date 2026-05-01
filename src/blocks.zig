@@ -790,6 +790,7 @@ pub fn consumeRefDefsFromCurrentBlock(self: *Parser) void {
 
         const norm_label = self.normalizeLabel(result.label);
         if (norm_label.len == 0) break;
+        if (norm_label.ptr == result.label.ptr) return;
 
         // First definition wins
         var already_exists = false;
@@ -799,14 +800,28 @@ pub fn consumeRefDefsFromCurrentBlock(self: *Parser) void {
                 break;
             }
         }
-        if (!already_exists) {
-            const dest_dupe = self.allocator.dupe(u8, result.dest) catch return;
-            const title_dupe = self.allocator.dupe(u8, result.title) catch return;
+        if (already_exists) {
+            self.allocator.free(norm_label);
+        } else {
+            const dest_dupe = self.allocator.dupe(u8, result.dest) catch {
+                self.allocator.free(norm_label);
+                return;
+            };
+            const title_dupe = self.allocator.dupe(u8, result.title) catch {
+                self.allocator.free(norm_label);
+                self.allocator.free(dest_dupe);
+                return;
+            };
             self.ref_defs.append(self.allocator, .{
                 .label = norm_label,
                 .dest = dest_dupe,
                 .title = title_dupe,
-            }) catch return;
+            }) catch {
+                self.allocator.free(norm_label);
+                self.allocator.free(dest_dupe);
+                self.allocator.free(title_dupe);
+                return;
+            };
         }
 
         var newlines: u32 = 0;

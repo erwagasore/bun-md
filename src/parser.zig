@@ -20,18 +20,18 @@ pub const Parser = struct {
     mark_char_map: bun.bit_set.StaticBitSet(256) = bun.bit_set.StaticBitSet(256).initEmpty(),
 
     // Dynamic arrays
-    marks: std.ArrayListUnmanaged(Mark) = .{},
-    containers: std.ArrayListUnmanaged(Container) = .{},
-    block_bytes: std.ArrayListAlignedUnmanaged(u8, .@"4") = .{},
-    buffer: std.ArrayListUnmanaged(u8) = .{},
-    emph_delims: std.ArrayListUnmanaged(EmphDelim) = .{},
+    marks: std.ArrayListUnmanaged(Mark) = .empty,
+    containers: std.ArrayListUnmanaged(Container) = .empty,
+    block_bytes: std.ArrayListAlignedUnmanaged(u8, .@"4") = .empty,
+    buffer: std.ArrayListUnmanaged(u8) = .empty,
+    emph_delims: std.ArrayListUnmanaged(EmphDelim) = .empty,
 
     // Number of active containers
     n_containers: u32 = 0,
 
     // Current block being built
     current_block: ?usize = null,
-    current_block_lines: std.ArrayListUnmanaged(VerbatimLine) = .{},
+    current_block_lines: std.ArrayListUnmanaged(VerbatimLine) = .empty,
 
     // Opener stacks
     opener_stacks: [types.NUM_OPENER_STACKS]types.OpenerStack =
@@ -53,7 +53,7 @@ pub const Parser = struct {
     table_alignments: [types.TABLE_MAXCOLCOUNT]Align = [_]Align{.default} ** types.TABLE_MAXCOLCOUNT,
 
     // Ref defs
-    ref_defs: std.ArrayListUnmanaged(RefDef) = .{},
+    ref_defs: std.ArrayListUnmanaged(RefDef) = .empty,
 
     // State
     last_line_has_list_loosening_effect: bool = false,
@@ -75,7 +75,7 @@ pub const Parser = struct {
     pub const MAX_EMPH_MATCHES = inlines_mod.MAX_EMPH_MATCHES;
     pub const RefDef = ref_defs_mod.RefDef;
 
-    pub const Error = bun.JSError || bun.StackOverflow;
+    pub const Error = bun.JSError || bun.StackOverflow || error{OutOfMemory};
 
     fn init(allocator: Allocator, text: []const u8, flags: Flags, rend: Renderer) Parser {
         const size: OFF = @intCast(text.len);
@@ -100,6 +100,11 @@ pub const Parser = struct {
         self.block_bytes.deinit(self.allocator);
         self.buffer.deinit(self.allocator);
         self.current_block_lines.deinit(self.allocator);
+        for (self.ref_defs.items) |ref_def| {
+            self.allocator.free(ref_def.label);
+            self.allocator.free(ref_def.dest);
+            self.allocator.free(ref_def.title);
+        }
         self.ref_defs.deinit(self.allocator);
         self.emph_delims.deinit(self.allocator);
     }
@@ -243,7 +248,9 @@ pub fn renderToHtml(text: []const u8, allocator: Allocator, flags: Flags, render
         error.StackOverflow => return error.StackOverflow,
     };
 
-    return html_renderer.toOwnedSlice();
+    const html = try html_renderer.toOwnedSlice();
+    html_renderer.deinit();
+    return html;
 }
 
 /// Parse and render using a custom renderer. The caller provides its own

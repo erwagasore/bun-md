@@ -421,8 +421,8 @@ pub fn generateSlug(
 pub const HeadingIdTracker = struct {
     enabled: bool,
     in_heading: bool = false,
-    text_buf: std.ArrayListUnmanaged(u8) = .{},
-    slug_counts: bun.StringHashMapUnmanaged(u32) = .{},
+    text_buf: std.ArrayListUnmanaged(u8) = .empty,
+    slug_counts: bun.StringHashMapUnmanaged(u32) = .empty,
 
     pub fn init(enabled: bool) HeadingIdTracker {
         return .{ .enabled = enabled };

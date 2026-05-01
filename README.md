@@ -6,7 +6,7 @@ Standalone extraction of [Bun's Markdown parser](https://github.com/oven-sh/bun/
 
 ## Upstream
 
-- **Source**: `oven-sh/bun@d1047c2` (`src/md/`)
+- **Source**: `oven-sh/bun@1b82e1d492e3` (`src/md/` parser + HTML renderer subset)
 - **Original**: [md4c](https://github.com/mity/md4c) by Martin Mitáš (MIT)
 - **Zig port**: Jarred Sumner (Bun PR [#26440](https://github.com/oven-sh/bun/pull/26440))
 

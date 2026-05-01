@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased]
+
+### Changed
+
+- Sync Bun Markdown parser + HTML-renderer subset from `oven-sh/bun@1b82e1d492e3`.
+- Preserve bun-md's Zig 0.16 compatibility and cleanup patch set during upstream sync.
+
 ## [0.2.0] — 2026-05-01
 
 ### Changed
